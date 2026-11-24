@@ -1,5 +1,5 @@
 // swift-tools-version:6.0
-// Gloaming: an open-source animated Metal wallpaper for macOS.
+// Gloaming: an open-source gradient wallpaper generator for macOS (Metal + SwiftUI).
 //
 // Layout note: PROJECT.md §12 suggests App/, Desktop/, Rendering/, Models/ … as siblings.
 // SwiftPM targets cannot share or nest directories, so everything except the app shell
