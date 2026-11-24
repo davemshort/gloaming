@@ -84,7 +84,7 @@ public final class WallpaperExporter {
     /// Dynamic wallpaper that follows the real sun for the Mac's location and date (System
     /// Settings: "Dynamic … based on your location"). Requires Location Services on the Mac;
     /// Gloaming itself never reads location. Frames are the same as a clock export's, each
-    /// tagged with the sun position its clock time has on the reference day (see `SunPath`).
+    /// tagged with a sun altitude chosen by light (twilight, sunrise, midday; see `SunPath`).
     /// Light (Still) = the frame nearest noon, Dark (Still) = nearest midnight; these work for
     /// solar files (Phase A2), unlike clock files.
     @discardableResult
@@ -93,9 +93,8 @@ public final class WallpaperExporter {
         let fractions = Self.dayFractions(frameCount: max(2, frameCount))
         let renderer = try FrameRenderer(context: context, size: size, fieldScale: fieldScale)
         let url = ImageFiles.uniqueURL(in: directory, baseName: name, fileExtension: "heic")
-        let entries = fractions.enumerated().map { i, f in
-            let p = SunPath.position(atDayFraction: f)
-            return DynamicHEIC.SolarEntry(imageIndex: i, altitude: p.altitude, azimuth: p.azimuth)
+        let entries = SunPath.solarEntries(forDayFractions: fractions).map {
+            DynamicHEIC.SolarEntry(imageIndex: $0.imageIndex, altitude: $0.position.altitude, azimuth: $0.position.azimuth)
         }
         try DynamicHEIC.writeSolar(
             frameCount: fractions.count, entries: entries,

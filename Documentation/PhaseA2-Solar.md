@@ -1,6 +1,6 @@
 # Phase A2: Sun-Position (Solar) Wallpapers
 
-Status: **solar format works on macOS 27: Dynamic label, correct sun-based frame, working Light/Dark (Still) without `apr`. Midday, sunset and lock-screen checks pending.**
+Status: **solar format works on macOS 27 (Dynamic label, Light/Dark stills, lock screen). macOS appears to select frames by altitude; mapping reworked to light-based altitudes on 2026-11-24, noon fix (afternoon entry for the noon frame) confirmed on screen; dusk check pending.**
 Date: 2026-11-23 · Apple M5 Pro, macOS 27.2.1.
 
 **Question:** can Gloaming export Apple's sun-position format (`apple_desktop:solar`), so a
@@ -53,11 +53,9 @@ Round-trip test: `ExportTests.solarRoundTrip`.
 ## Productized (2026-11-23): "Dynamic (follows the sun)", the default export type
 
 - **Mapping** (`Core/Export/SunPath.swift`): frame *i* of N is rendered exactly like a clock
-  export at clock time *i/N* × 24 h (same day arc). It's then tagged with the sun's position at
-  that time on a **reference day**: latitude 40° N at an equinox (sunrise due east 06:00, noon
-  50° due south, sunset due west 18:00, midnight −50° north). macOS shows whichever frame's
-  reference position is closest to the real sun, so dawn and dusk colors follow real sunrise and
-  sunset through the seasons.
+  export at clock time *i/N* × 24 h (same day arc). *Originally* tagged with the sun position on a
+  40° N equinox reference day; **replaced on 2026-11-24 by light-based altitudes** (see "Rework"
+  below) after macOS turned out to select by altitude.
 - **File:** `solar` tag only (no `apr`), `ap` = frame nearest noon (light) and nearest midnight
   (dark). Light/Dark (Still) work (S-3).
 - **Editor:** the export sheet lists "Dynamic (follows the sun)" first and selects it by default.
@@ -93,3 +91,82 @@ observations, not documented by Apple.
 **Morning check (2026-11-24, 7:57 AM, about an hour after sunrise):** the desktop showed the
 Winter 8 AM frame (mauve, pink glow top center, dark lower right), matching the simulation
 (7:00–8:30 → 8 AM frame). Sunset (S-6) is still to be checked.
+
+## Correction: macOS selects by altitude, not angular distance (2026-11-24)
+
+Screenshots were matched against every frame of the applied `Winter Dynamic.heic` (48×27
+downsample, center crop, RMSE in 8-bit levels):
+
+| Time | Real sun (≈35.8° N, 90.7° W) | Frame shown (RMSE) | Angular-distance rule | Nearest altitude, same side of noon |
+|---|---|---|---|---|
+| 7:57 AM | 11.3°, az 126° | **08:00** (0.7) | 08:00 ✅ | 08:00 ✅ |
+| 1:16 PM | 30.2°, az 204° | **16:00** (0.7; 14:00 was 33.7) | 14:00 ❌ | 16:00 ✅ |
+
+So the "Reference-path check" above was wrong: the 1:21 PM indigo on 2026-11-23 was the
+16:00 frame, not 14:00. The observations fit **nearest altitude among frames on the same side
+of solar noon** (rising vs setting); azimuth only seems to decide the side. Still inferred from
+two data points.
+
+Consequence for the 40° N reference: frames are tagged 50° (noon) and 42° (10:00/14:00), which
+a late-November sun at 36° N (max ≈ 34°) never reaches. Predicted today: 12:00 frame never
+shows, 10:00 only 11:00–12:00, 14:00 only 12:00–13:00, 16:00 from 13:00, **dusk (18:00) from
+about 16:00, before the ~16:55 sunset**, night (20:00) from about 18:00. The mapping needs
+reworking around altitude: tag each frame with the altitude at which it should appear, chosen so midday frames are reachable in winter.
+
+## Rework: light-based altitudes (2026-11-24)
+
+`SunPath` now tags frames by the light each clock time represents, not by a reference latitude.
+Altitudes for the morning half (afternoon mirrored), interpolated linearly for any frame count:
+
+| Clock time | 00:00 | 02:00 | 04:00 | 06:00 | 08:00 | 10:00 | 12:00 |
+|---|---|---|---|---|---|---|---|
+| Altitude | −50° | −30° | −12° | −4° | +5° | +15° | +28° |
+
+Azimuths still follow the 40° N equinox path; they only mark morning (< 180°) vs afternoon.
+Frames switch halfway between neighboring tags, so dawn/dusk switch at +0.5° (just before sunset),
+the blue hour starts at −8°, and the noon look appears above 21.5°.
+
+Simulated with the nearest-altitude-per-side rule (dusk start vs sunset, hours of noon look):
+
+| Location | Dec | Mar | Jun |
+|---|---|---|---|
+| Miami 26° N | −7 min, 3.3 h | −5 min, 4.3 h | −6 min, 5.1 h |
+| Jonesboro 36° N | −8 min, 2.4 h | −7 min, 4.2 h | −8 min, 5.3 h |
+| London 51° N | −11 min, 0 h | −8 min, 3.5 h | −12 min, 5.6 h |
+| Oslo 60° N | −17 min, 0 h | −11 min, 2.7 h | −17 min, 5.8 h |
+| Sydney 34° S | −7 min, 5.3 h | −6 min, 4.3 h | −7 min, 2.6 h |
+
+The old 40° N tags gave dusk 50 min to 2.8 h before sunset under the same rule. Under a pure
+angular-distance rule *no* fixed tag set works across seasons (sunrise azimuth swings ±30°), and
+Apple's own solar wallpapers work worldwide, which also argues for the altitude rule.
+
+Open questions:
+- **The noon frame's side.** Its azimuth is exactly 180°. If macOS treats it as afternoon only, the
+  noon look starts at solar noon and late morning stays on the 10:00 look (simulated above). A
+  second `si` entry for the noon image at 179.9° might fix that; untested.
+- Far north in winter the noon look never shows; an export option to tune for latitude could
+  lower the midday tags. Not planned unless needed.
+
+Export for testing: `build/sun/Winter Dynamic (light-based).heic` (tags read back: −50, −30, −12,
+−4, 5, 15, 28, mirrored; `ap = {l: 6, d: 0}`). 97 tests pass.
+
+Predictions for Jonesboro, 2026-11-25, with the new file (altitude rule / angular rule):
+08:00–10:00 10:00 look (both); **10:30–11:30 10:00 / 12:00**; 12:00–13:00 noon (both);
+**13:30–14:30 12:00 / 14:00**; 16:00–16:30 16:00 (both); **17:00–17:30 18:00 / 16:00**.
+
+### Observation 3 and the noon fix (2026-11-24, 1:44 PM)
+
+The light-based file was applied at 1:44 PM (Index.plist `LastSet` 19:44:43 UTC) and showed the
+**14:00** frame (RMSE 0.8), not noon. Sun ≈ 27.5°, az ≈ 210°. All three observations fit
+**nearest altitude on the same side of noon, with azimuth exactly 180° counted as morning**:
+the noon frame (28°, 180°) wasn't a candidate after solar noon, leaving 14:00 (15°) as nearest.
+
+Fix: frames at exactly noon/midnight get a second `si` entry on the afternoon side (181° / 359°,
+same altitude). Test file: `build/sun/Winter Dynamic (noon fix).heic` (14 entries, 12 images).
+Expected if macOS accepts repeated image indices: the noon look in the early afternoon (sun
+above 21.5°, until ≈ 2:35 PM today), then 14:00, 16:00 from ≈ 3:45, dusk at ≈ 4:50.
+
+**Result (1:50 PM):** the noon-fix file showed the **12:00** frame (RMSE 0.7; next best 34.9).
+macOS accepts a repeated image index in `si`, and the afternoon entry makes noon reachable after
+solar noon. Selection rule now supported by four observations. Remaining checks: dusk at
+≈ 4:50 PM today, and tomorrow's morning (noon look from ≈ 9:00 AM).

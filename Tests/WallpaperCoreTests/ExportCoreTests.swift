@@ -187,25 +187,50 @@ struct ExportPipelineTests {
 
 @Suite("Sun path")
 struct SunPathTests {
-    @Test func referenceDayPositions() {
+    @Test func anchorPositions() {
         let noon = SunPath.position(atDayFraction: 0.5)
-        #expect(abs(noon.altitude - 50) < 0.01 && abs(noon.azimuth - 180) < 0.01)
-        let sunrise = SunPath.position(atDayFraction: 0.25)
-        #expect(abs(sunrise.altitude) < 0.01 && abs(sunrise.azimuth - 90) < 0.01)
-        let sunset = SunPath.position(atDayFraction: 0.75)
-        #expect(abs(sunset.altitude) < 0.01 && abs(sunset.azimuth - 270) < 0.01)
+        #expect(noon.altitude == 28 && noon.azimuth == 180)
+        let dawn = SunPath.position(atDayFraction: 0.25), dusk = SunPath.position(atDayFraction: 0.75)
+        #expect(dawn.altitude == -4 && dawn.azimuth == 90)
+        #expect(dusk.altitude == -4 && dusk.azimuth == 270)
+        #expect(SunPath.position(atDayFraction: 8.0 / 24).altitude == 5)
         let midnight = SunPath.position(atDayFraction: 0)
-        #expect(abs(midnight.altitude + 50) < 0.01 && (midnight.azimuth < 0.01 || midnight.azimuth > 359.99))
+        #expect(midnight.altitude == -50 && (midnight.azimuth < 0.01 || midnight.azimuth > 359.99))
     }
 
-    @Test func morningIsEastAndRisingEveningIsWestAndSetting() {
-        let nine = SunPath.position(atDayFraction: 9.0 / 24), three = SunPath.position(atDayFraction: 15.0 / 24)
-        #expect(nine.azimuth > 90 && nine.azimuth < 180 && nine.altitude > 0)
-        #expect(three.azimuth > 180 && three.azimuth < 270 && abs(three.altitude - nine.altitude) < 0.01)
-        for i in 0..<48 {
-            let p = SunPath.position(atDayFraction: Double(i) / 48)
-            #expect(p.azimuth >= 0 && p.azimuth < 360 && abs(p.altitude) <= 50.01)
+    /// Under macOS's nearest-altitude-per-side selection, frames must be symmetric about noon,
+    /// strictly ordered on each side, and on the correct side by azimuth, for any frame count.
+    @Test(arguments: [5, 12, 24, 48])
+    func symmetricMonotonicAndSided(frameCount: Int) {
+        let fractions = (0..<frameCount).map { Double($0) / Double(frameCount) }
+        let positions = fractions.map(SunPath.position(atDayFraction:))
+        for (f, p) in zip(fractions, positions) {
+            let mirror = SunPath.position(atDayFraction: 1 - f)
+            #expect(abs(p.altitude - mirror.altitude) < 0.01)
+            #expect(p.azimuth >= 0 && p.azimuth < 360 && p.altitude >= -50 && p.altitude <= 28)
+            if f > 0 && f < 0.5 { #expect(p.azimuth < 180) }
+            if f > 0.5 { #expect(p.azimuth > 180) }
         }
+        let morning = zip(fractions, positions).filter { $0.0 <= 0.5 }.map { $0.1.altitude }
+        #expect(zip(morning, morning.dropFirst()).allSatisfy { $0 < $1 })
+    }
+
+    @Test func noonAndMidnightGetAnAfternoonEntry() {
+        let entries = SunPath.solarEntries(forDayFractions: (0..<12).map { Double($0) / 12 })
+        #expect(entries.count == 14)
+        #expect(entries.filter { $0.imageIndex == 6 }.map(\.position.azimuth) == [180, 181])
+        #expect(entries.filter { $0.imageIndex == 0 }.map(\.position.azimuth) == [0, 359])
+        // Odd frame counts have no exact noon/midnight other than frame 0.
+        #expect(SunPath.solarEntries(forDayFractions: (0..<5).map { Double($0) / 5 }).count == 6)
+    }
+
+    /// The dawn→golden (and golden→dusk) switch sits at the horizon, so dusk colours appear
+    /// at the real sunset anywhere.
+    @Test func dawnDuskSwitchIsAtTheHorizon() {
+        let dawn = SunPath.position(atDayFraction: 6.0 / 24).altitude
+        let golden = SunPath.position(atDayFraction: 8.0 / 24).altitude
+        let midpoint = (dawn + golden) / 2
+        #expect(midpoint > -1 && midpoint < 2)
     }
 }
 
@@ -222,9 +247,12 @@ struct SunExportTests {
         #expect(info.imageCount == 12)
         #expect(info.h24Raw == nil && info.aprRaw == nil)          // solar only (Phase A2)
         let si = try #require(info.solar?["si"] as? [[String: Any]])
-        #expect(si.count == 12)
-        let noon = try #require(si.first { $0["i"] as? Int == 6 })
-        #expect(noon["a"] as? Double == 50 && noon["z"] as? Double == 180)
+        #expect(si.count == 14)                                     // + afternoon copies of noon and midnight
+        let noon = si.filter { $0["i"] as? Int == 6 }
+        #expect(noon.compactMap { $0["z"] as? Double }.sorted() == [180, 181])
+        #expect(noon.allSatisfy { $0["a"] as? Double == 28 })
+        let midnight = si.filter { $0["i"] as? Int == 0 }
+        #expect(midnight.compactMap { $0["z"] as? Double }.sorted() == [0, 359])
         #expect((info.solar?["ap"] as? [String: Int]) == ["l": 6, "d": 0])
     }
 
