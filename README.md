@@ -3,13 +3,19 @@
 Design soft, flowing gradient wallpapers for macOS, then export them as **native wallpapers**
 that change through the day, on both the desktop and the lock screen.
 
+**Gloaming makes wallpapers; it doesn't run them.** It creates ordinary image files that macOS
+shows by itself. Quit Gloaming, delete it even, and your wallpaper keeps changing with the day.
+No background app, no login item, no ongoing battery cost.
+
 ![The Summer preset across one day, from deep teal night through a pale blue dawn, peach and turquoise midday, orange afternoon and a magenta sunset](Documentation/images/summer-day.jpg)
 
 *The built-in Summer preset, one frame every two hours. ([Winter](Documentation/images/winter-day.jpg) is another example.)*
 
 Gloaming is a small SwiftUI + Metal app. You pick or tweak a look in a live, animated preview,
-and Gloaming renders it into the formats macOS already understands. No background process,
-no login item, nothing running after you close it.
+and Gloaming renders it into the formats macOS already understands. The movement you see in
+the preview becomes a sequence of frames, and macOS switches between them through the day.
+Unlike live-wallpaper apps, nothing has to keep drawing your desktop: the wallpaper is just a
+file, and it works on the lock screen too.
 
 ![The Gloaming editor: presets in the sidebar, a live animated preview of Summer in the middle, and the colors, movement, finish and through-the-day controls on the right](Documentation/images/editor.png)
 
@@ -20,7 +26,7 @@ no login item, nothing running after you close it.
 
 | Export | What macOS does with it |
 |---|---|
-| **Dynamic: follows the sun** (default) | A multi-frame `.heic` tagged with sun positions. macOS shows dawn colours at your real sunrise, dusk at your real sunset, through the seasons. Light/Dark (Still) also work. Needs Location Services on. |
+| **Dynamic: follows the sun** (default) | A multi-frame `.heic` tagged with sun positions. macOS shows dawn colors at your real sunrise, dusk at your real sunset, through the seasons. Light/Dark (Still) also work. Needs Location Services on. |
 | **Dynamic: follows the clock** | Frames tied to clock times instead of the sun. For people who keep Location Services off. |
 | **Light & Dark** | A two-frame `.heic` that switches with system appearance. |
 | **Still** | A single PNG or HEIC at any size up to 16K. |
@@ -30,7 +36,7 @@ Gloaming never reads your location. macOS works out where the sun is on its own.
 
 ## Features
 
-- Live animated preview: domain-warped gradient noise with OKLab colour blending, film grain and dithering (no banding).
+- Live animated preview: domain-warped gradient noise with OKLab color blending, film grain and dithering (no banding).
 - 19 built-in presets: moods (Calm, Focus, …), seasons (Winter, Spring, …) and vibes (Aurora, Spooky, Neon, …).
 - Shape the day: a strip shows how the wallpaper looks at each hour, and you can set different palettes for night, morning and evening.
 - Save, share and import your own presets (`.gloamingpreset`, plain JSON).
