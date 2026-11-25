@@ -3,9 +3,9 @@
 Design soft, flowing gradient wallpapers for macOS, then export them as **native wallpapers**
 that change through the day, on both the desktop and the lock screen.
 
-![The Winter preset across one day, from midnight navy through a rose dawn, steel-blue noon and violet dusk](Documentation/images/winter-day.jpg)
+![The Summer preset across one day, from deep teal night through a pale blue dawn, peach and turquoise midday, orange afternoon and a magenta sunset](Documentation/images/summer-day.jpg)
 
-*The built-in Winter preset, one frame every two hours.*
+*The built-in Summer preset, one frame every two hours. ([Winter](Documentation/images/winter-day.jpg) is another example.)*
 
 Gloaming is a small SwiftUI + Metal app. You pick or tweak a look in a live, animated preview,
 and Gloaming renders it into the formats macOS already understands. No background process,
