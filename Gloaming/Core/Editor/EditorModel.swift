@@ -42,7 +42,13 @@ public final class EditorModel {
     public nonisolated static let timeRange: ClosedRange<Double> = 0...1800
 
     @ObservationIgnored public weak var undoManager: UndoManager?
-    private struct Snapshot { var look: Look; var presetID: UUID? }
+    /// Editor preview at 100% (one export pixel per screen pixel, scrollable) instead of fit
+    /// to the window. View state only; not saved and not part of undo.
+    public var previewActualSize = false
+    /// A state in the undo history. `actionName` names the step that led *away* from it
+    /// (shown as "Undo <name>" / "Redo <name>" in the Edit menu).
+    private struct Snapshot { var look: Look; var presetID: UUID?; var actionName = EditorModel.defaultActionName }
+    public nonisolated static let defaultActionName = "Edit Wallpaper"
     @ObservationIgnored private var undoStack: [Snapshot] = []
     @ObservationIgnored private var redoStack: [Snapshot] = []
     @ObservationIgnored private var committed: Look
@@ -52,6 +58,8 @@ public final class EditorModel {
     @ObservationIgnored private var pendingCommit: Task<Void, Never>?
     /// True while a run of colour-picker changes is grouped into one already-registered step.
     @ObservationIgnored private var burstOpen = false
+    /// Name for the step being built (set by the edit that starts it).
+    @ObservationIgnored private var pendingActionName: String?
     @ObservationIgnored private var rng: SeededGenerator
     @ObservationIgnored private let defaults: UserDefaults
 
@@ -73,7 +81,9 @@ public final class EditorModel {
 
     public var canUndo: Bool { !undoStack.isEmpty || !Self.sameEdit(look, committed) }
 
-    private var committedSnapshot: Snapshot { Snapshot(look: committed, presetID: committedPresetID) }
+    private func committedSnapshot(named name: String) -> Snapshot {
+        Snapshot(look: committed, presetID: committedPresetID, actionName: name)
+    }
     private var hasUncommittedChanges: Bool { !Self.sameEdit(look, committed) || currentPresetID != committedPresetID }
     public var canRedo: Bool { !redoStack.isEmpty }
 
@@ -81,7 +91,10 @@ public final class EditorModel {
 
     /// Applies a change to the look. `commit: false` for continuous gestures (slider drags);
     /// call `commit()` when the gesture ends.
-    public func update(commit shouldCommit: Bool = true, _ change: (inout Look) -> Void) {
+    /// `actionName` labels the undo step ("Undo Change Grain"); nil keeps a name already set
+    /// for the step in progress, else "Edit Wallpaper".
+    public func update(_ actionName: String? = nil, commit shouldCommit: Bool = true, _ change: (inout Look) -> Void) {
+        if let actionName, !burstOpen { pendingActionName = actionName }
         captureTime()
         var new = look
         change(&new)
@@ -101,23 +114,30 @@ public final class EditorModel {
             committedPresetID = currentPresetID
             return
         }
+        let name = takeActionName()
         guard hasUncommittedChanges else { return }
-        undoStack.append(committedSnapshot)
+        undoStack.append(committedSnapshot(named: name))
         redoStack.removeAll()
         committed = look
         committedPresetID = currentPresetID
-        registerWithUndoManager(redo: false)
+        registerWithUndoManager(redo: false, name: name)
+    }
+
+    private func takeActionName() -> String {
+        defer { pendingActionName = nil }
+        return pendingActionName ?? Self.defaultActionName
     }
 
     /// Groups a run of changes from a control without an "editing ended" callback (ColorPicker)
     /// into one undo step. The step is registered on the *first* change, so ⌘Z works right
     /// away; later changes fold into it until `delay` passes without another change.
-    public func beginOrExtendBurst(after delay: Duration = .milliseconds(600)) {
+    public func beginOrExtendBurst(_ actionName: String = EditorModel.defaultActionName,
+                                   after delay: Duration = .milliseconds(600)) {
         if !burstOpen {
             commit()                                   // settle any other pending gesture first
-            undoStack.append(committedSnapshot)
+            undoStack.append(committedSnapshot(named: actionName))
             redoStack.removeAll()
-            registerWithUndoManager(redo: false)
+            registerWithUndoManager(redo: false, name: actionName)
             burstOpen = true
         }
         commitSoon(after: delay)
@@ -136,16 +156,16 @@ public final class EditorModel {
     public func undo() {
         commit()
         guard let previous = undoStack.popLast() else { return }
-        redoStack.append(committedSnapshot)
+        redoStack.append(committedSnapshot(named: previous.actionName))
         restore(previous)
-        registerWithUndoManager(redo: true)
+        registerWithUndoManager(redo: true, name: previous.actionName)
     }
 
     public func redo() {
         guard let next = redoStack.popLast() else { return }
-        undoStack.append(committedSnapshot)
+        undoStack.append(committedSnapshot(named: next.actionName))
         restore(next)
-        registerWithUndoManager(redo: false)
+        registerWithUndoManager(redo: false, name: next.actionName)
     }
 
     // MARK: - Palette helpers
@@ -153,7 +173,7 @@ public final class EditorModel {
     public nonisolated static let colorRange = 2...8
 
     public func selectPalette(_ palette: Palette) {
-        update { $0.palette = palette; Self.usePaletteAllDay(&$0) }
+        update("Choose Palette") { $0.palette = palette; Self.usePaletteAllDay(&$0) }
     }
 
     /// After the user changes colours, the day arc's own palettes (a season preset's dawn,
@@ -166,7 +186,7 @@ public final class EditorModel {
     /// Changes one colour. Editing turns any built-in palette into "Custom".
     public func setColor(_ color: RGBColor, at index: Int) {
         guard look.palette.colors.indices.contains(index) else { return }
-        beginOrExtendBurst()
+        beginOrExtendBurst("Change Color")
         update(commit: false) { l in
             l.palette = Palette(id: "custom", name: "Custom", colors: l.palette.colors)
             l.palette.colors[index] = Self.clamped(color)
@@ -176,7 +196,7 @@ public final class EditorModel {
 
     public func addColor() {
         guard look.palette.colors.count < Self.colorRange.upperBound else { return }
-        update { l in
+        update("Add Color") { l in
             var colors = l.palette.colors
             // Insert between the two lightest stops, keeping dark → light order.
             let last = colors.last.map(OKLab.init) ?? OKLab(L: 0.8, a: 0, b: 0)
@@ -190,7 +210,7 @@ public final class EditorModel {
     public func removeColor(at index: Int) {
         guard look.palette.colors.count > Self.colorRange.lowerBound,
               look.palette.colors.indices.contains(index) else { return }
-        update { l in
+        update("Remove Color") { l in
             var colors = l.palette.colors
             colors.remove(at: index)
             l.palette = Palette(id: "custom", name: "Custom", colors: colors)
@@ -201,7 +221,7 @@ public final class EditorModel {
     public func moveColor(from source: Int, to destination: Int) {
         let colors = look.palette.colors
         guard colors.indices.contains(source), colors.indices.contains(destination), source != destination else { return }
-        update { l in
+        update("Reorder Colors") { l in
             var c = l.palette.colors
             c.insert(c.remove(at: source), at: destination)
             l.palette = Palette(id: "custom", name: "Custom", colors: c)
@@ -214,7 +234,7 @@ public final class EditorModel {
     public func randomize(_ kind: RandomizeKind) {
         var new = Randomizer.apply(kind, to: look, using: &rng)
         if new.palette != look.palette { Self.usePaletteAllDay(&new) }
-        update { $0 = new }
+        update(kind.actionName) { $0 = new }
     }
 
     /// Sets the scrubber position (not recorded in undo history).
@@ -310,7 +330,7 @@ public final class EditorModel {
     /// arrowing through the sidebar) is one undo step.
     public func apply(_ preset: Preset) {
         guard preset.id != currentPresetID || isModified else { return }
-        beginOrExtendBurst(after: .milliseconds(1500))
+        beginOrExtendBurst("Apply Preset", after: .milliseconds(1500))
         nextPaletteFade = 1.5
         update(commit: false) { $0 = preset.look }
         currentPresetID = preset.id
@@ -404,12 +424,12 @@ public final class EditorModel {
         committed = s
     }
 
-    private func registerWithUndoManager(redo: Bool) {
+    private func registerWithUndoManager(redo: Bool, name: String) {
         guard let um = undoManager else { return }
         um.registerUndo(withTarget: self) { target in
             MainActor.assumeIsolated { redo ? target.redo() : target.undo() }
         }
-        um.setActionName("Edit Wallpaper")
+        um.setActionName(name)
     }
 
     /// Equal apart from the scrubber position.

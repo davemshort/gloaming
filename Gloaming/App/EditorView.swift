@@ -4,6 +4,7 @@ import WallpaperCore
 struct EditorView: View {
     @Bindable var model: EditorModel
     @Environment(\.undoManager) private var undoManager
+    @Environment(\.displayScale) private var displayScale
     // `State` stored directly instead of `@State`: in the macOS 27 SDK `@State` is a macro whose
     // plugin ships only with full Xcode, and this project builds with the Command Line Tools.
     private let showingExport = State(initialValue: false)
@@ -56,14 +57,33 @@ struct EditorView: View {
 
     private var preview: some View {
         ZStack {
-            Color(nsColor: .underPageBackgroundColor)
-            PreviewView(model: model, isPlaying: model.isPlaying, redrawCount: model.redrawCount)
-                .aspectRatio(CGFloat(targetSize.width) / CGFloat(targetSize.height), contentMode: .fit)
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .shadow(color: .black.opacity(0.25), radius: 12, y: 4)
-                .padding(28)
+            // The window's own adaptive background: light in Light mode, dark in Dark mode,
+            // so the wallpaper reads as content rather than sitting in a heavy gray well.
+            Color(nsColor: .windowBackgroundColor)
+            if model.previewActualSize {
+                // One export pixel per screen pixel; scroll to inspect grain and detail.
+                GeometryReader { geo in
+                    ScrollView([.horizontal, .vertical]) {
+                        previewCanvas
+                            .frame(width: CGFloat(targetSize.width) / displayScale,
+                                   height: CGFloat(targetSize.height) / displayScale)
+                            .padding(28)
+                            .frame(minWidth: geo.size.width, minHeight: geo.size.height)
+                    }
+                }
+            } else {
+                previewCanvas
+                    .aspectRatio(CGFloat(targetSize.width) / CGFloat(targetSize.height), contentMode: .fit)
+                    .padding(28)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var previewCanvas: some View {
+        PreviewView(model: model, isPlaying: model.isPlaying, redrawCount: model.redrawCount)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
     }
 
     @ToolbarContentBuilder
@@ -76,6 +96,20 @@ struct EditorView: View {
             }
             .keyboardShortcut(.space, modifiers: [])
             .help(model.isPlaying ? "Pause the preview (Space)" : "Play the preview (Space)")
+
+            Picker("Preview Size", selection: $model.previewActualSize) {
+                Text("Fit").tag(false)
+                Text("100%").tag(true)
+            }
+            .pickerStyle(.segmented)
+            .help("Fit the preview to the window (⌘9), or show it at actual pixels (⌘0)")
+
+            Button {
+                FullScreenPreview.shared.toggle(model: model, size: targetSize)
+            } label: {
+                Label("Full-Screen Preview", systemImage: "arrow.up.left.and.arrow.down.right")
+            }
+            .help("Preview full screen (⇧⌘F; Esc to exit)")
         }
         ToolbarItemGroup(placement: .primaryAction) {
             Menu {

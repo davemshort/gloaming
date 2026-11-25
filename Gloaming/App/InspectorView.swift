@@ -36,10 +36,10 @@ struct InspectorView: View {
             Section {
                 HStack {
                     TextField("Seed", value: Binding(get: { Int(model.look.seed) },
-                                                     set: { v in model.update { $0.seed = UInt32(clamping: max(0, v)) } }),
+                                                     set: { v in model.update("Change Variation") { $0.seed = UInt32(clamping: max(0, v)) } }),
                               format: .number.grouping(.never))
                     Button {
-                        model.update { $0.seed = UInt32.random(in: 0...100_000) }
+                        model.update("New Variation") { $0.seed = UInt32.random(in: 0...100_000) }
                     } label: {
                         Image(systemName: "shuffle")
                     }
@@ -65,7 +65,7 @@ private struct ParameterSlider: View {
     var body: some View {
         LabeledContent {
             Slider(value: Binding(get: { model.look.parameters[keyPath: key] },
-                                  set: { v in model.update(commit: false) { $0.parameters[keyPath: key] = v } }),
+                                  set: { v in model.update("Change \(title)", commit: false) { $0.parameters[keyPath: key] = v } }),
                    in: range,
                    onEditingChanged: { editing in if !editing { model.commit() } })
         } label: {

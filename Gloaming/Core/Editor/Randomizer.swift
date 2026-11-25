@@ -17,6 +17,17 @@ public enum RandomizeKind: String, CaseIterable, Sendable {
     case everything, colors, movement
 }
 
+extension RandomizeKind {
+    /// Undo step name ("Undo Randomize Colors").
+    public var actionName: String {
+        switch self {
+        case .everything: "Randomize"
+        case .colors: "Randomize Colors"
+        case .movement: "Randomize Movement"
+        }
+    }
+}
+
 /// Generates tasteful random looks.
 ///
 /// Palettes always run dark → light with a real lightness spread, because the shader maps its

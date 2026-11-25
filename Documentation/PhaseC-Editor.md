@@ -123,3 +123,17 @@ shell, so the layout needs a person.
   sharing user presets; a browser with thumbnails.
 - **Phase E:** Set as Wallpaper, app icon, README, CI, signing and notarization.
 - Export blocks the UI briefly; moving rendering off the main thread is a possible polish item.
+
+## Editor polish (2026-11-25)
+
+From outside UI feedback:
+- **Preview background:** the window's adaptive background (`windowBackgroundColor`) instead of
+  the heavier "under page" gray.
+- **Fit / 100%:** toolbar toggle and View menu (⌘9 Zoom to Fit, ⌘0 Actual Size). 100% shows one
+  export pixel per screen pixel in a scroll view, for judging grain and dither.
+- **Full-screen preview:** ⇧⌘F or the toolbar button. Borderless window on the editor's screen,
+  menu bar and Dock hidden, export aspect scaled to fill (like macOS "Fill Screen"). Esc or ⇧⌘F
+  exits, Space plays/pauses. The editor preview pauses while covered.
+- **Undo names:** steps are named ("Undo Randomize Colors", "Undo Change Grain", "Undo Apply
+  Preset"); `EditorTests.undoStepsAreNamedForTheEdit`.
+- Deferred: collapsible inspector sections (the inspector still fits without scrolling).

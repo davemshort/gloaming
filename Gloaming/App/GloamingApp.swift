@@ -24,6 +24,20 @@ struct GloamingApp: App {
         .windowResizability(.contentMinSize)
         .commands {
             CommandGroup(replacing: .newItem) {}
+            CommandGroup(before: .toolbar) {
+                if let model = model.wrappedValue {
+                    Button("Zoom to Fit") { model.previewActualSize = false }
+                        .keyboardShortcut("9")
+                    Button("Actual Size") { model.previewActualSize = true }
+                        .keyboardShortcut("0")
+                    Button("Full-Screen Preview") {
+                        let size = model.exportSettings.size ?? ExportSize.currentDisplay() ?? ExportSize(width: 16, height: 9)
+                        FullScreenPreview.shared.toggle(model: model, size: size)
+                    }
+                    .keyboardShortcut("f", modifiers: [.command, .shift])
+                    Divider()
+                }
+            }
         }
     }
 }

@@ -184,6 +184,28 @@ struct EditorModelTests {
         #expect(m.look.palette.colors[0] == RGBColor(red: 0.8, green: 0.2, blue: 0.1))
     }
 
+    @Test func undoStepsAreNamedForTheEdit() throws {
+        let (m, um) = try managedModel()
+        um.beginUndoGrouping(); m.randomize(.colors); um.endUndoGrouping()
+        #expect(um.undoActionName == "Randomize Colors")
+        um.beginUndoGrouping()
+        m.update("Change Grain", commit: false) { $0.parameters.grain = 0.7 }
+        m.update("Change Grain", commit: false) { $0.parameters.grain = 0.8 }
+        m.commit()
+        um.endUndoGrouping()
+        #expect(um.undoActionName == "Change Grain")
+        um.undo()
+        #expect(um.redoActionName == "Change Grain")
+        #expect(um.undoActionName == "Randomize Colors")
+        um.redo()
+        #expect(um.undoActionName == "Change Grain")
+        um.beginUndoGrouping(); m.setColor(RGBColor(red: 0.5, green: 0.5, blue: 0.5), at: 1); um.endUndoGrouping()
+        #expect(um.undoActionName == "Change Color")
+        m.commit()                                  // end the colour burst (normally after 0.6 s)
+        um.beginUndoGrouping(); m.update { $0.seed = 3 }; um.endUndoGrouping()
+        #expect(um.undoActionName == EditorModel.defaultActionName)
+    }
+
     @Test func colorBurstAfterAnotherEditUndoesOnlyTheBurst() throws {
         let (m, um) = try managedModel()
         um.beginUndoGrouping(); m.update { $0.parameters.grain = 0.8 }; um.endUndoGrouping()
