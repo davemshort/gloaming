@@ -28,7 +28,7 @@ struct InspectorView: View {
             } header: {
                 Text("Through the Day")
             } footer: {
-                Text(model.look.dayArc.hasPaletteOverrides
+                SectionFooter(model.look.dayArc.hasPaletteOverrides
                      ? "What a Dynamic export shows, including this preset’s dawn, dusk and night colors. Editing colors replaces those with yours."
                      : "What a Dynamic export shows: dimmer at night, brightest at noon.")
             }
@@ -48,10 +48,24 @@ struct InspectorView: View {
             } header: {
                 Text("Variation")
             } footer: {
-                Text("The same seed and settings always give the same wallpaper.")
+                SectionFooter("The same seed and settings always give the same wallpaper.")
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// Grouped-form footers are trailing-aligned on macOS; the inspector reads left to right,
+/// so its explanations are left-aligned like everything else.
+private struct SectionFooter: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text)
+            .multilineTextAlignment(.leading)
+            .padding(.horizontal, 10)                  // line up with the section header
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
