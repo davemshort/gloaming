@@ -11,6 +11,8 @@ Gloaming is a small SwiftUI + Metal app. You pick or tweak a look in a live, ani
 and Gloaming renders it into the formats macOS already understands. No background process,
 no login item, nothing running after you close it.
 
+![The Gloaming editor: presets in the sidebar, a live animated preview of Summer in the middle, and the colors, movement, finish and through-the-day controls on the right](Documentation/images/editor.png)
+
 > **Status: early, pre-release (0.4).** It works and is used daily on the author's Mac, but
 > there are no signed downloads yet. Build it from source (below).
 

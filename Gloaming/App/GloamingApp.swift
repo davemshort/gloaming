@@ -51,8 +51,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let store = PresetStore(directory: PresetStore.defaultDirectory)
         store.loadErrors.forEach { EventLog.shared.log("preset load error: \($0)") }
-        // Start on the built-in preset matching the palette (Aurora by default).
-        let start = Preset.vibes.first { $0.look.palette.id == o.palette.id }
+        // Start on --preset if given, else the built-in preset matching the palette (Aurora by default).
+        let start = o.preset ?? Preset.vibes.first { $0.look.palette.id == o.palette.id }
         var look = start?.look ?? Look(palette: o.palette)
         if o.parameters != RenderParameters() { look.parameters = o.parameters }
         let model = EditorModel(context: context, look: look, presetStore: store, presetID: start?.id)
@@ -61,6 +61,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if let size = options.windowSize {
+            // After SwiftUI has created and restored the window.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                MainActor.assumeIsolated {
+                    guard let window = NSApp.windows.first(where: { $0.isVisible }),
+                          let screen = window.screen?.visibleFrame else { return }
+                    let frame = NSRect(x: screen.midX - size.width / 2, y: screen.midY - size.height / 2,
+                                       width: size.width, height: size.height)
+                    window.setFrame(frame, display: true)
+                    NSApp.activate()
+                }
+            }
+        }
         if let seconds = options.exitAfter {
             Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { _ in
                 MainActor.assumeIsolated { NSApp.terminate(nil) }

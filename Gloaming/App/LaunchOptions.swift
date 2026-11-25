@@ -17,6 +17,7 @@ import WallpaperCore
 ///   --snapshot PATH.png     one offscreen frame (with --snapshot-size WxH, --start-phase X)
 ///   --phase-a-test DIR      Phase A native-format test files (uses --snapshot-size)
 ///   --exit-after SECONDS    quit the editor automatically (smoke tests)
+///   --window-size WxH       editor window size in points (screenshots)
 ///   --icon DIR [--icon-variant NAME]  app icon review sheet / .icns (see IconCommand)
 struct LaunchOptions {
     var palette: Palette = .aurora
@@ -25,6 +26,7 @@ struct LaunchOptions {
     var renderScale: Double = 0.25
     var startPhase: Double = 0
     var exitAfter: TimeInterval?
+    var windowSize: CGSize?
     var snapshotPath: String?
     var snapshotSize = (width: 1920, height: 1080)
     var phaseATestDir: String?
@@ -62,6 +64,9 @@ struct LaunchOptions {
             case "--render-scale": if let v = double(a) { o.renderScale = max(0.05, min(1, v)) }
             case "--start-phase": if let v = double(a) { o.startPhase = v }
             case "--exit-after": o.exitAfter = double(a)
+            case "--window-size":
+                if let s = it.next().flatMap(ExportSize.init) { o.windowSize = CGSize(width: s.width, height: s.height) }
+                else { o.warnings.append("--window-size needs WxH") }
             case "--snapshot": o.snapshotPath = it.next()
             case "--snapshot-size":
                 let parts = (it.next() ?? "").split(separator: "x").compactMap { Int($0) }
